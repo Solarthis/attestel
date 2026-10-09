@@ -64,11 +64,13 @@ export function sign(n) {
 // dated item rather than left implicit.
 export function relFromMs(ms) {
   const time = numeric(ms);
-  if (!Number.isFinite(time)) return "";
+  // 0 is an unset Go int64 / missing timestamp, not 1970; never render it as "20735d ago".
+  if (!Number.isFinite(time) || time === 0) return "";
   const delta = Date.now() - time;
   const s = Math.floor(Math.abs(delta) / 1000);
   const future = delta < 0;
-  if (s < 60) return future ? "in less than a minute" : "just now";
+  // Timestamps are server-supplied; tolerate up to 5 minutes of client/server clock skew.
+  if (s < 60 || (future && s < 300)) return "just now";
   const age = s < 3600 ? `${Math.floor(s / 60)}m`
     : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`;
   return future ? `in ${age}` : `${age} ago`;
@@ -96,7 +98,7 @@ export function daysUntil(ymd) {
   then.setUTCFullYear(y, m - 1, d);
   if (then.getUTCFullYear() !== y || then.getUTCMonth() !== m - 1 || then.getUTCDate() !== d) return null;
   const now = new Date();
-  // Compare calendar dates, not elapsed local-midnight hours across DST changes.
+  // Compare local calendar dates as UTC day numbers.
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((then.getTime() - today) / 86400000);
 }
